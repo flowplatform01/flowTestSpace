@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="FlowPay External Test App - Test payment integration and webhooks" />
+  <title>FlowPay External Test App</title>
+  <link rel="stylesheet" href="/assets/styles.css?v=1779145200" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap"
+    rel="stylesheet" />
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌊</text></svg>">
+  <link rel="preconnect" href="http://localhost:3010" />
+  <link rel="dns-prefetch" href="http://localhost:3010" />
+</head>
+
+<body>
+  <main class="shell" role="main" aria-label="FlowPay Test Interface">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Merchant Sandbox</p>
+        <h1>Demo Merchant Checkout</h1>
+        <p class="lede">
+          This app behaves like a real merchant system. It creates orders, invoices, saved-recipient transfers,
+          payment failures, idempotency checks, and webhooks through its own backend.
+        </p>
+      </div>
+      <div class="status">
+        <span id="flowpayBaseUrl">Loading...</span>
+        <small id="publicKeyPreview" aria-label="Public key preview">Checking config</small>
+      </div>
+    </section>
+
+    <section class="scenario-panel panel">
+      <div class="panel-header">
+        <h2>Merchant Scenarios</h2>
+        <p>Choose a realistic merchant workflow. FlowPay routing remains private to the merchant backend.</p>
+      </div>
+      <div id="scenarioGrid" class="scenario-grid" aria-label="FlowPay scenario presets"></div>
+      <div class="probe-actions">
+        <button type="button" id="securityProbeBtn">Run Security Probes</button>
+      </div>
+    </section>
+
+    <section class="recipient-panel panel">
+      <div class="panel-header">
+        <h2>Saved Recipient Setup</h2>
+        <p>Create a school, vendor, or wallet recipient from this merchant backend when FlowPay Admin allows it.</p>
+      </div>
+      <form id="recipientForm" class="recipient-form" novalidate>
+        <label>
+          Saved Recipient ID
+          <input name="externalRecipientId" value="school-panama-demo" required aria-describedby="setup-recipient-id-hint" />
+          <small id="setup-recipient-id-hint" class="input-hint">Stable merchant-side reference used later during checkout</small>
+        </label>
+        <label>
+          Display Name
+          <input name="displayName" value="Panama School" required aria-describedby="setup-display-name-hint" />
+          <small id="setup-display-name-hint" class="input-hint">Human-readable recipient name</small>
+        </label>
+        <label>
+          Payout Method
+          <select name="payoutMethod">
+            <option value="MTN_MOMO">MTN Mobile Money</option>
+            <option value="ORANGE_MONEY">Orange Money</option>
+            <option value="BANK_TRANSFER">Bank Transfer</option>
+          </select>
+        </label>
+        <label>
+          Payout Target
+          <input name="payoutTarget" value="+237677777777" required aria-describedby="setup-target-hint" />
+          <small id="setup-target-hint" class="input-hint">School wallet, phone number, or bank reference</small>
+        </label>
+        <label>
+          Currency
+          <input name="regionalCurrency" value="XAF" maxlength="3" required />
+        </label>
+        <label>
+          Settlement Strategy
+          <select name="settlementStrategy">
+            <option value="TWO_STEP_MIRROR">Collect then settle</option>
+            <option value="NATIVE_SPLIT">Direct split settlement</option>
+          </select>
+        </label>
+        <label>
+          Preferred Payment Method
+          <select name="preferredMethod">
+            <option value="MTN_MOMO">MTN Mobile Money</option>
+            <option value="ORANGE_MONEY">Orange Money</option>
+          </select>
+        </label>
+        <button type="submit">Create Saved Recipient</button>
+      </form>
+      <pre id="recipientResult" role="log" aria-label="Recipient setup response" aria-live="polite">No recipient request sent yet.</pre>
+      <div id="recipientConfirmationActions" class="recipient-confirmation-actions hidden" aria-live="polite">
+        <p class="recipient-confirmation-copy">
+          Send this FlowPay confirmation link to the payout owner. The merchant backend never stores FlowPay secrets in the browser.
+        </p>
+        <div class="recipient-confirmation-link-row">
+          <code id="recipientConfirmationUrl">No confirmation link yet.</code>
+          <button type="button" id="copyRecipientConfirmationUrl">Copy Link</button>
+          <button type="button" id="openRecipientConfirmationUrl">Open as Recipient</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="credits-panel panel">
+      <div class="panel-header">
+        <h2>Operational Credits</h2>
+        <p>Merchant billing contact tops up FlowPay credits through the merchant backend — same pattern a SaaS tenant would use in production.</p>
+      </div>
+      <div class="credits-summary">
+        <div class="credits-metric">
+          <span>Effective Balance</span>
+          <strong id="creditEffectiveBalance">—</strong>
+        </div>
+        <div class="credits-metric">
+          <span>Posture</span>
+          <strong id="creditPosture">—</strong>
+        </div>
+        <button type="button" id="refreshCreditsBtn">Refresh Balance</button>
+      </div>
+      <form id="creditPurchaseForm" class="credit-form" novalidate>
+        <label>
+          Top-Up Amount (XAF)
+          <input name="amountXaf" type="number" min="100" step="100" value="1500" required />
+        </label>
+        <label>
+          Payment Method
+          <select name="creditPaymentMethod">
+            <option value="CARD_PAYMENT">Card Payment</option>
+            <option value="MTN_MOMO">MTN Mobile Money</option>
+          </select>
+        </label>
+        <label>
+          Billing Contact Name
+          <input name="customerName" value="Merchant Billing Contact" required />
+        </label>
+        <label>
+          Billing Email
+          <input name="customerEmail" type="email" value="billing@merchant.example.com" required />
+        </label>
+        <button type="submit">Purchase Credits via Checkout</button>
+      </form>
+      <pre id="creditResult" role="log" aria-label="Credit operation response" aria-live="polite">No credit operation yet.</pre>
+    </section>
+
+    <section class="grid">
+      <form id="paymentForm" class="panel" novalidate>
+        <div class="panel-header">
+          <h2>Create Checkout</h2>
+          <p>Creates a payment from this merchant backend using stored server credentials.</p>
+        </div>
+
+        <label>
+          Checkout Type
+          <select name="scenarioId" aria-describedby="scenario-hint">
+            <option value="merchant-collection">Online Store Order</option>
+            <option value="saas-subscription">Subscription Invoice</option>
+            <option value="tenant-transfer">Saved Recipient Transfer</option>
+            <option value="provider-failure">Declined Payment Test</option>
+            <option value="invalid-recipient">Unknown Recipient Test</option>
+            <option value="custom">Custom Merchant Payment</option>
+          </select>
+          <small id="scenario-hint" class="input-hint">Loads realistic merchant defaults for this checkout</small>
+        </label>
+
+        <label>
+          Amount
+          <input name="amount" type="number" min="1" value="2500" required aria-describedby="amount-hint" />
+          <small id="amount-hint" class="input-hint">Minimum amount: 1 XAF</small>
+        </label>
+
+        <label>
+          Currency
+          <input name="currency" value="XAF" maxlength="3" pattern="[A-Z]{3}" required
+            aria-describedby="currency-hint" />
+          <small id="currency-hint" class="input-hint">3-letter currency code (e.g., XAF, USD, EUR)</small>
+        </label>
+
+        <label>
+          Payment method
+          <select name="paymentMethod" required aria-describedby="payment-method-hint">
+            <option value="MTN_MOMO">MTN Mobile Money</option>
+            <option value="ORANGE_MONEY">Orange Money</option>
+            <option value="CARD_PAYMENT">Card Payment</option>
+            <option value="BANK_TRANSFER">Bank Transfer</option>
+          </select>
+          <small id="payment-method-hint" class="input-hint">Payment channel shown to the customer</small>
+        </label>
+
+        <label>
+          Customer Name
+          <input name="customerName" value="External Test Customer" required aria-describedby="name-hint" />
+          <small id="name-hint" class="input-hint">Customer full name</small>
+        </label>
+
+        <label>
+          Customer Email
+          <input name="customerEmail" type="email" value="customer@example.com" required
+            aria-describedby="email-hint" />
+          <small id="email-hint" class="input-hint">Valid email address</small>
+        </label>
+
+        <label>
+          Customer Phone
+          <input name="customerPhone" value="+237600000000" pattern="\+?[0-9]{10,15}" required
+            aria-describedby="phone-hint" />
+          <small id="phone-hint" class="input-hint">Phone number with country code (e.g., +237600000000)</small>
+        </label>
+
+        <label>
+          Order Reference
+          <input name="externalReference" placeholder="Optional - auto-generated if empty"
+            aria-describedby="ref-hint" />
+          <small id="ref-hint" class="input-hint">Unique merchant order or invoice reference</small>
+        </label>
+
+        <label>
+          Saved Recipient ID
+          <input name="externalRecipientReference" placeholder="Only for saved-recipient transfers"
+            aria-describedby="recipient-ref-hint" />
+          <small id="recipient-ref-hint" class="input-hint">Merchant-side saved beneficiary identifier</small>
+        </label>
+
+        <label>
+          Recipient Display Name
+          <input name="recipientName" placeholder="Shown only for saved-recipient transfers" aria-describedby="recipient-name-hint" />
+          <small id="recipient-name-hint" class="input-hint">Human-readable name shown at checkout</small>
+        </label>
+
+        <label>
+          Checkout Description
+          <input name="orderDescription" placeholder="e.g. Order #1048, May subscription, Wallet transfer"
+            aria-describedby="note-hint" />
+          <small id="note-hint" class="input-hint">Short customer-facing description for this checkout</small>
+        </label>
+
+        <label>
+          Idempotency Key
+          <input name="idempotencyKey" placeholder="Optional - auto-generated if empty" aria-describedby="idemp-hint" />
+          <small id="idemp-hint" class="input-hint">Prevents duplicate transactions</small>
+        </label>
+
+        <div class="button-group" role="group" aria-label="Form actions">
+          <button type="submit">Open Checkout</button>
+          <button type="button" id="clearBtn">Clear Form</button>
+          <button type="button" id="randomBtn">Random Data</button>
+        </div>
+      </form>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Merchant Backend Result</h2>
+          <p>Shows the server-side payment response without exposing secret credentials.</p>
+        </div>
+
+        <div class="result-controls" role="group" aria-label="Result actions">
+          <button id="copyResult">Copy Result</button>
+          <button id="clearResult">Clear Result</button>
+          <button id="downloadResult">Download JSON</button>
+        </div>
+
+        <pre id="result" role="log" aria-label="API Response" aria-live="polite">No request sent yet.</pre>
+      </section>
+    </section>
+
+    <section class="webhook-section panel">
+      <div class="panel-header">
+        <h2>Webhook Testing</h2>
+        <p>Test webhook endpoints and view incoming FlowPay webhooks.</p>
+      </div>
+
+      <div class="webhook-info">
+        <h3>Webhook Endpoint</h3>
+        <div class="webhook-url">
+          <code id="webhookUrl" role="code" aria-label="Webhook URL">Loading...</code>
+          <button id="copyWebhookUrl" aria-label="Copy webhook URL">Copy URL</button>
+        </div>
+        <p class="webhook-description">
+          Configure this URL in your FlowPay dashboard to receive webhook events.
+          This test app will capture and display incoming webhooks below.
+        </p>
+      </div>
+
+      <div class="webhook-controls" role="group" aria-label="Webhook actions">
+        <button id="testWebhook">Send Test Webhook</button>
+        <button id="clearWebhooks">Clear Webhooks</button>
+      </div>
+
+      <div class="webhook-log">
+        <h3>Recent Webhooks</h3>
+        <div id="webhookList" role="log" aria-label="Webhook history" aria-live="polite">
+          <p class="no-webhooks">No webhooks received yet.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- FlowPay Bottom Sheet Overlay -->
+  <div id="flowpay-overlay" class="flowpay-overlay hidden" aria-hidden="true"></div>
+
+  <!-- FlowPay Bottom Sheet -->
+  <div id="flowpay-sheet" class="flowpay-sheet hidden" role="dialog" aria-modal="true"
+    aria-labelledby="flowpay-sheet-title">
+    <div class="flowpay-sheet-header">
+      <h2 id="flowpay-sheet-title">Complete Payment</h2>
+      <button id="close-flowpay-sheet" aria-label="Close checkout">&times;</button>
+    </div>
+    <div class="flowpay-sheet-content">
+      <div id="flowpay-sheet-loader" class="flowpay-sheet-loader" aria-live="polite">
+        <div class="flowpay-sheet-loader-spinner"></div>
+        <p>Loading secure checkout...</p>
+      </div>
+      <iframe id="flowpay-iframe" title="FlowPay Checkout" src="about:blank" loading="eager"></iframe>
+    </div>
+  </div>
+
+  <script src="/assets/highlight.js"></script>
+  <script src="/assets/app.js"></script>
+</body>
+
+</html>
