@@ -15,7 +15,7 @@ try {
   await page.locator("[name=paymentMethod]").selectOption("MTN_MOMO");
   await page.locator("[name=externalReference]").fill(`ui-campay-success-${Date.now()}`);
 
-  await page.getByRole("button", { name: "Send Test Payment" }).click();
+  await page.getByRole("button", { name: "Open Checkout" }).click();
   await expect(page.locator("#result")).toContainText('"ok": true', { timeout: 60_000 });
 
   const sheet = page.locator("#flowpay-sheet");

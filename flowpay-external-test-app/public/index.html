@@ -144,6 +144,10 @@
           Billing Email
           <input name="customerEmail" type="email" value="billing@merchant.example.com" required />
         </label>
+        <label>
+          Billing Phone
+          <input name="customerPhone" value="+237677777777" pattern="\+?[0-9]{10,15}" required />
+        </label>
         <button type="submit">Purchase Credits via Checkout</button>
       </form>
       <pre id="creditResult" role="log" aria-label="Credit operation response" aria-live="polite">No credit operation yet.</pre>
@@ -208,9 +212,9 @@
 
         <label>
           Customer Phone
-          <input name="customerPhone" value="+237600000000" pattern="\+?[0-9]{10,15}" required
+          <input name="customerPhone" value="+237677777777" pattern="\+?[0-9]{10,15}" required
             aria-describedby="phone-hint" />
-          <small id="phone-hint" class="input-hint">Phone number with country code (e.g., +237600000000)</small>
+          <small id="phone-hint" class="input-hint">Phone number with country code (e.g., +237677777777)</small>
         </label>
 
         <label>

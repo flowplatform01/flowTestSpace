@@ -43,7 +43,7 @@ test.describe("FlowPay external integration", () => {
 
     await paymentForm(page).locator('[name="scenarioId"]').selectOption("provider-failure");
     await paymentForm(page).locator('[name="externalReference"]').fill(`e2e-fail-${Date.now()}`);
-    await paymentForm(page).locator('[name="paymentMethod"]').selectOption("CARD_PAYMENT");
+    await expect(paymentForm(page).locator('[name="paymentMethod"]')).toHaveValue("CARD_PAYMENT");
     await page.getByRole("button", { name: "Open Checkout" }).click();
 
     await expect(page.locator("#result")).toContainText('"ok": true', { timeout: 45_000 });

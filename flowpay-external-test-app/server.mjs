@@ -65,7 +65,7 @@ const server = http.createServer(async (request, response) => {
         deferCapture: body.deferCapture !== undefined ? Boolean(body.deferCapture) : true,
         customerName: body.customerName || "External Test Customer",
         customerEmail: body.customerEmail || "customer@example.com",
-        customerPhone: body.customerPhone || "+237600000000",
+        customerPhone: body.customerPhone || "+237677777777",
         external_recipient_reference:
           mode === "MODE_2" ? body.externalRecipientReference || scenario?.externalRecipientReference : undefined,
         metadata: {
@@ -267,12 +267,36 @@ const server = http.createServer(async (request, response) => {
       });
     }
 
+    if (request.method === "GET" && url.pathname.startsWith("/api/recipients/status/")) {
+      const externalRecipientId = decodeURIComponent(url.pathname.replace("/api/recipients/status/", ""));
+      const flowpayResponse = await fetch(
+        `${flowpayBaseUrl}/api/v1/destination-profiles/${encodeURIComponent(externalRecipientId)}`,
+        {
+          headers: flowpayAuthHeaders()
+        }
+      );
+      const result = await flowpayResponse.json().catch(() => ({
+        message: "FlowPay returned a non-JSON response"
+      }));
+
+      return sendJson(response, flowpayResponse.status, {
+        ok: flowpayResponse.ok,
+        status: flowpayResponse.status,
+        result: flowpayResponse.ok
+          ? {
+              savedRecipientId: result.externalRecipientId,
+              verificationStatus: result.verificationStatus,
+              updatedAt: result.updatedAt
+            }
+          : merchantErrorResult(result)
+      });
+    }
+
     if (request.method === "POST" && url.pathname === "/api/recipients/create") {
       const body = await readJson(request);
       const payoutMethod = body.payoutMethod || body.preferredMethod || "MTN_MOMO";
       const payload = {
         externalRecipientId: normalizeRecipientReference(body.externalRecipientId),
-        providerType: resolveProviderForMerchantRail(payoutMethod),
         payoutTarget: normalizeOptionalText(body.payoutTarget, 80),
         settlementStrategy: body.settlementStrategy || "TWO_STEP_MIRROR",
         regionalCurrency: (body.regionalCurrency || "XAF").toUpperCase(),
@@ -424,13 +448,6 @@ function normalizeRecipientReference(value) {
 function maskPayoutTarget(value = "") {
   if (value.length <= 6) return value;
   return `${value.slice(0, 4)}...${value.slice(-4)}`;
-}
-
-function resolveProviderForMerchantRail(paymentMethod) {
-  const normalized = String(paymentMethod || "").toUpperCase();
-  if (normalized === "ORANGE_MONEY") return "MAVIANCE";
-  if (normalized === "BANK_TRANSFER") return "CINETPAY";
-  return "CAMPAY";
 }
 
 function paymentMethodLabel(paymentMethod) {

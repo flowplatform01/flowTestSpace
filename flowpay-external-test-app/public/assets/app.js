@@ -118,7 +118,7 @@ clearBtn.addEventListener("click", () => {
 
 randomBtn.addEventListener("click", () => {
   const randomAmount = Math.floor(Math.random() * 10000) + 100;
-  const randomPhone = `+237${Math.floor(Math.random() * 900000000) + 100000000}`;
+  const randomPhone = randomCameroonMobileMoneyPhone();
   const randomEmail = `test${Math.floor(Math.random() * 1000)}@example.com`;
   const randomName = `Test User ${Math.floor(Math.random() * 1000)}`;
   const randomRef = `test-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -243,7 +243,8 @@ creditPurchaseForm?.addEventListener("submit", async (event) => {
         amountXaf: Number(data.amountXaf),
         paymentMethod: data.creditPaymentMethod,
         customerName: data.customerName,
-        customerEmail: data.customerEmail
+        customerEmail: data.customerEmail,
+        customerPhone: data.customerPhone
       })
     });
     const payload = await response.json();
@@ -316,9 +317,15 @@ function validateForm() {
   const email = form.querySelector('[name="customerEmail"]').value;
   const phone = form.querySelector('[name="customerPhone"]').value;
   const currency = form.querySelector('[name="currency"]').value;
+  const paymentMethod = form.querySelector('[name="paymentMethod"]').value;
 
   if (!amount || amount < 1) {
     showError('Amount must be at least 1');
+    return false;
+  }
+
+  if (["MTN_MOMO", "ORANGE_MONEY"].includes(paymentMethod) && Number(amount) < 100) {
+    showError('Mobile money sandbox payments must be at least 100 XAF');
     return false;
   }
 
@@ -338,6 +345,12 @@ function validateForm() {
   }
 
   return true;
+}
+
+function randomCameroonMobileMoneyPhone() {
+  const prefix = Math.random() > 0.5 ? "67" : "69";
+  const suffix = String(Math.floor(Math.random() * 10_000_000)).padStart(7, "0");
+  return `+237${prefix}${suffix}`;
 }
 
 function applyScenario(scenario) {
@@ -618,8 +631,10 @@ function showCheckoutLoadError(message) {
   errorNode.querySelector("button")?.addEventListener("click", closeFlowpayCheckout, { once: true });
 }
 
-function updateResultWithCheckoutStatus(statusPayload) {
-  const rawText = result.textContent;
+function updatePanelWithCheckoutStatus(panel, statusPayload) {
+  if (!panel) return;
+
+  const rawText = panel.textContent;
   if (!rawText || rawText === "No request sent yet.") return;
 
   try {
@@ -630,12 +645,22 @@ function updateResultWithCheckoutStatus(statusPayload) {
       message: statusPayload.message ?? null,
       completedAt: new Date().toISOString()
     };
-    result.innerHTML = formatResult(JSON.stringify(parsed, null, 2));
-    result.classList.remove("loading", "error", "success");
-    result.classList.add(statusPayload.status === "SUCCEEDED" || statusPayload.status === "UNDER_REVIEW" ? "success" : "error");
+
+    if (parsed.result && typeof parsed.result === "object") {
+      parsed.result.status = statusPayload.status;
+    }
+
+    panel.innerHTML = formatResult(JSON.stringify(parsed, null, 2));
+    panel.classList.remove("loading", "error", "success");
+    panel.classList.add(statusPayload.status === "SUCCEEDED" || statusPayload.status === "UNDER_REVIEW" ? "success" : "error");
   } catch {
-    // If the result panel contains a non-JSON error, keep it untouched.
+    // If the panel contains a non-JSON error, keep it untouched.
   }
+}
+
+function updateResultWithCheckoutStatus(statusPayload) {
+  updatePanelWithCheckoutStatus(result, statusPayload);
+  updatePanelWithCheckoutStatus(creditResult, statusPayload);
 }
 
 function showCheckoutTerminalState({ status, transactionId, message }) {

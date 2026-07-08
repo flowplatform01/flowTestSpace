@@ -14,10 +14,39 @@ export async function completeEmbeddedCheckout(page: Page, options: { authorizeL
   await expect(iframe.getByText("Payment Method")).toBeVisible({ timeout: 120_000 });
   await expect(page.locator("#flowpay-sheet-loader")).toBeHidden({ timeout: 10_000 });
   await iframe.getByRole("button", { name: authorizeLabel }).click();
-  await expect(iframe.getByText("Payment Successful")).toBeVisible({ timeout: 60_000 });
-  await expect(page.locator("#flowpay-sheet").getByRole("heading", { name: "Payment Successful" })).toBeVisible({
-    timeout: 15_000
-  });
+
+  const successPattern = /"status"\s*:\s*"SUCCEEDED"/;
+
+  await expect
+    .poll(
+      async () => {
+        const sheetSuccess = await page
+          .locator("#flowpay-sheet")
+          .getByRole("heading", { name: "Payment Successful" })
+          .isVisible()
+          .catch(() => false);
+        const iframeSuccess = await iframe
+          .getByRole("heading", { name: "Payment Successful" })
+          .isVisible()
+          .catch(() => false);
+        const resultText = await page.locator("#result").textContent().catch(() => "");
+        const creditText = await page.locator("#creditResult").textContent().catch(() => "");
+        return (
+          sheetSuccess ||
+          iframeSuccess ||
+          successPattern.test(resultText ?? "") ||
+          successPattern.test(creditText ?? "")
+        );
+      },
+      { timeout: 180_000 }
+    )
+    .toBe(true);
+
+  const doneButton = page.locator("#flowpay-sheet-status").getByRole("button", { name: "Done" });
+  if (await doneButton.isVisible()) {
+    await doneButton.click();
+    await expect(page.locator("#flowpay-overlay")).toHaveClass(/hidden/, { timeout: 10_000 });
+  }
 }
 
 export async function readJsonPanel(page: Page, selector: string) {

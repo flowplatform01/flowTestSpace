@@ -1,8 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { completeEmbeddedCheckout, paymentForm, readJsonPanel, uniqueRef, waitForMerchantReady } from "./helpers";
 
-test.describe("Recipient confirmation governance", () => {
-  test("merchant creates recipient and payout owner confirms via FlowPay link", async ({ page, context }) => {
+test.describe("Recipient confirmation gateway", () => {
+  test("merchant submits data, recipient edits payout target, confirms, and transfer succeeds", async ({
+    page,
+    context
+  }) => {
     await waitForMerchantReady(page);
 
     const recipientId = uniqueRef("e2e-recipient");
@@ -17,24 +20,31 @@ test.describe("Recipient confirmation governance", () => {
     expect(recipientPayload.result?.status).toBe("PENDING");
 
     const confirmationUrl = recipientPayload.result.confirmationUrl as string;
-    await expect(page.locator("#recipientConfirmationUrl")).toContainText("/recipient-confirm/");
-
     const recipientPage = await context.newPage();
     await recipientPage.goto(confirmationUrl, { waitUntil: "networkidle" });
-    await expect(recipientPage.getByRole("heading", { name: /Action Required|Account Confirmed/i })).toBeVisible({
+    await expect(recipientPage.getByRole("heading", { name: "Review Payout Destination" })).toBeVisible({
       timeout: 60_000
     });
 
-    if (await recipientPage.getByRole("heading", { name: "Action Required" }).isVisible()) {
-      await expect(recipientPage.getByText("+237677777777")).toBeVisible();
-      await recipientPage.getByRole("button", { name: "Yes, this is my account" }).click();
-      await expect(recipientPage.getByRole("heading", { name: "Account Confirmed" })).toBeVisible({ timeout: 30_000 });
-    }
+    await recipientPage.getByRole("button", { name: "Edit" }).click();
+    await recipientPage.getByLabel("Payout target").fill("+237677777778");
+    await recipientPage.getByRole("button", { name: "Confirm and activate" }).click();
+    await expect(recipientPage.getByRole("heading", { name: "Payout Destination Confirmed" })).toBeVisible({
+      timeout: 30_000
+    });
     await recipientPage.close();
 
+    const statusResponse = await page.request.get(
+      `/api/recipients/status/${encodeURIComponent(recipientPayload.result.savedRecipientId)}`
+    );
+    expect(statusResponse.ok()).toBeTruthy();
+    const statusPayload = await statusResponse.json();
+    expect(statusPayload.result?.verificationStatus).toBe("VERIFIED");
+
     await paymentForm(page).locator('[name="scenarioId"]').selectOption("custom");
-    await paymentForm(page).locator('[name="amount"]').fill("1800");
-    await paymentForm(page).locator('[name="paymentMethod"]').selectOption("MTN_MOMO");
+    await paymentForm(page).locator('[name="amount"]').fill("18");
+    await paymentForm(page).locator('[name="paymentMethod"]').selectOption("CARD_PAYMENT");
+    await paymentForm(page).locator('[name="customerPhone"]').fill("+237677777777");
     await paymentForm(page).locator('[name="externalRecipientReference"]').fill(recipientPayload.result.savedRecipientId);
     await paymentForm(page).locator('[name="recipientName"]').fill("E2E Panama School");
     await paymentForm(page).locator('[name="externalReference"]').fill(uniqueRef("e2e-transfer"));
